@@ -23,7 +23,7 @@ npx wrangler secret put EDGECHAT_TURN_API_TOKEN
 
 `EDGECHAT_TURN_KEY_ID` 是 TURN Key 的 `uid`；`EDGECHAT_TURN_API_TOKEN` 是该 Key 返回的 `key`，不是用于部署的 `CLOUDFLARE_API_TOKEN`。Worker 调用 `https://rtc.live.cloudflare.com/v1/turn/keys/{uid}/credentials/generate-ice-servers` 生成 3,600 秒短期凭据，每个通话参与者复用一次签发，结束后删除 DO 缓存。
 
-GitHub Actions 用户在 Repository Secrets 添加相同的两项名称；必须成对配置。工作流在部署后通过 `wrangler secret put` 注入。未提供时保留已有 Worker Secrets；新安装没有 TURN 配置时只能 P2P，连接失败会明确报错，不会假装已切换中继。
+本仓库的生产工作流使用 `--keep-vars` 保留已有 Worker Secrets。如需启用 TURN，请在 Cloudflare 为现有 Worker 成对配置以上两项 Secret。未配置时使用 P2P，不能建立直连的通话会提示连接失败。
 
 保留 `wrangler.example.toml` 中的 `VOICE_CALL` binding 与 `v4` / `VoiceCall` SQLite DO 迁移，正常 Actions 自动部署它们；已有 D1 / KV / R2 复用，没有 D1 schema 变更。demo 不申请真实凭据、不采集麦克风或建立真实通话。
 
