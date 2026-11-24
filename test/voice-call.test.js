@@ -193,14 +193,16 @@ test('incoming calls require acceptance, and another tab accepting dismisses the
   h.client.reset();
 });
 
-test('a ringing video call asks for media only on acceptance and releases both tracks on hangup', async () => {
+test('recovering a ringing video call asks for media only on acceptance and releases both tracks on hangup', async () => {
   const video = { kind: 'video', enabled: true, stop() { this.stopped = true; } };
   const audio = { kind: 'audio', enabled: true, stop() { this.stopped = true; } };
   const stream = { getTracks: () => [audio, video], getVideoTracks: () => [video], getAudioTracks: () => [audio] };
   const requests = [];
   const h = clientHarness({ userId: 2, clientId: calleeClient, getMedia: async kind => { requests.push(kind); return stream; } });
   const invite = { type: 'call_invite', callId, roomId: 4, callerId: 1, calleeId: 2, media: 'video', mode: 'auto', expiresAt: Date.now() + CALL_RING_MS };
+  h.api.callPending = async () => ({ invite });
   try {
+    await h.client.recoverInvite(4);
     await h.client.receive(invite);
     assert.equal(h.states.at(-1).phase, 'incoming');
     assert.equal(requests.length, 0);
@@ -421,6 +423,18 @@ test('hanging up while an acceptance is in flight ends the accepted call and rel
   } finally { h.client.reset(); }
 });
 
+test('a live hangup invalidates an outstanding restored invitation', async () => {
+  const h = clientHarness({ userId: 2 });
+  let resolvePending;
+  h.api.callPending = () => new Promise(resolve => { resolvePending = resolve; });
+  const invite = { type: 'call_invite', callId, roomId: 4, callerId: 1, calleeId: 2, media: 'video', expiresAt: Date.now() + CALL_RING_MS };
+  const pending = h.client.recoverInvite(4);
+  await h.client.receive({ ...invite, type: 'call_ended' });
+  resolvePending({ invite });
+  await pending;
+  assert.equal(h.states.length, 0);
+});
+
 test('video capture errors do not start signaling and audio calls never request a camera', async () => {
   const media = [];
   const h = clientHarness({ getMedia: async kind => { media.push(kind); throw new Error('media unavailable'); } });
@@ -482,8 +496,14 @@ test('VoiceCall persists across eviction, arbitrates accept, forwards signals an
   const request = (userId, body) => object.fetch(new Request('https://internal/action?roomId=4', { method: 'POST', headers: createVerifiedPrincipalHeaders({ 'Content-Type': 'application/json' }, { userId }), body: JSON.stringify(body) }));
   assert.equal((await request(1, start)).status, 200);
   assert.equal(notifications.filter(event => event.payload.type === 'call_invite').length, 2);
+  const pending = async userId => (await object.fetch(new Request('https://internal/pending?roomId=4', { headers: createVerifiedPrincipalHeaders({}, { userId }) }))).json();
+  assert.equal((await pending(1)).invite, null);
+  const recovered = (await pending(2)).invite;
+  assert.equal(recovered.callId, callId);
+  assert.equal(recovered.media, 'audio');
   object = new VoiceCall({ storage }, env);
   assert.equal((await request(2, { type: 'accept', callId, clientId: calleeClient, mode: 'auto' })).status, 200);
+  assert.equal((await pending(2)).invite, null);
   assert.equal((await request(2, { type: 'accept', callId, clientId: callerClient, mode: 'auto' })).status, 409);
   assert.equal((await request(1, { type: 'offer', callId, clientId: callerClient, revision: 1, sdp: 'v=0\r\n' })).status, 200);
   assert.equal(notifications.at(-1).user, 'user:2');

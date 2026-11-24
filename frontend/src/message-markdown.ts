@@ -1,5 +1,5 @@
 import DOMPurify from "dompurify";
-import MarkdownIt from "markdown-it";
+import { createMessageMarkdownParser, markdownToPlainText } from "../../shared/message-markdown.ts";
 import { parseMarkdownImageUrl } from "./markdown-image.ts";
 import type { MessageMention } from "./mentions.ts";
 import { tokenizeMessageText } from "./message-text.ts";
@@ -42,23 +42,7 @@ const ALLOWED_ATTRIBUTES = [
 	"alt", "class", "decoding", "href", "loading", "referrerpolicy", "rel", "src", "target", "title",
 ];
 
-function isSafeWebUrl(value: string) {
-	try {
-		const url = new URL(value);
-		return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
-	} catch {
-		return false;
-	}
-}
-
-const markdown = new MarkdownIt({
-	breaks: true,
-	html: false,
-	linkify: false,
-	typographer: false,
-});
-
-markdown.validateLink = isSafeWebUrl;
+const markdown = createMessageMarkdownParser();
 
 markdown.core.ruler.after("inline", "edgechat-message-text", (state) => {
 	const environment = state.env as MarkdownEnvironment;
@@ -110,7 +94,7 @@ markdown.renderer.rules.image = (tokens, index, options, environment, renderer) 
 	const token = tokens[index];
 	const source = token.attrGet("src") || "";
 	const label = token.content || source;
-	if (!isSafeWebUrl(source)) {
+	if (!markdown.validateLink(source)) {
 		return `<span class="message-image-syntax">${markdown.utils.escapeHtml(`![${label}](${source})`)}</span>`;
 	}
 
@@ -166,20 +150,5 @@ export function renderMessageMarkdown(
 }
 
 export function messageMarkdownToPlainText(content: string) {
-	const parts: string[] = [];
-	for (const token of markdown.parse(String(content || ""), {})) {
-		if (token.type === "fence" || token.type === "code_block") {
-			parts.push(token.content);
-			continue;
-		}
-		for (const child of token.children || []) {
-			if (child.type === "text" || child.type === "code_inline" || child.type === "image") {
-				parts.push(child.content);
-			} else if (child.type === "softbreak" || child.type === "hardbreak") {
-				parts.push("\n");
-			}
-		}
-		if (token.type === "inline") parts.push("\n");
-	}
-	return parts.join("").replace(/\s+/gu, " ").trim();
+	return markdownToPlainText(markdown, content);
 }

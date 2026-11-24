@@ -35,6 +35,7 @@ import VoiceCallBar from '../components/chat/VoiceCallBar.vue';
 import { resolveMentionUserIds } from '../mentions.ts';
 import store from '../store.js';
 import api from '../api.js';
+import { reconcileDevicePush } from '../web-push.js';
 import { useUserProfile } from '../composables/useUserProfile.ts';
 import { useI18n } from '../i18n.js';
 
@@ -110,7 +111,10 @@ const {
   notifyRoom
 } = useBrowserNotifications({
   userId: session.value?.userId,
-  onOpenRoom: openRoomFromNotification
+  onOpenRoom: openRoomFromNotification,
+  onRoomMuteChanged(room) {
+    if (room.kind === 'dm') void reconcileDevicePush(api, session.value?.userId).catch(() => {});
+  }
 });
 const activeRoomMuted = computed(() => isRoomMuted(activeRoom.value));
 const {
@@ -178,6 +182,10 @@ const voiceCall = useVoiceCall({ userId: session.value?.userId, error,
   shouldRing: call => !isRoomMuted({ kind: 'dm', id: call.roomId }),
   notifyIncoming: call => notifyRoom({ type: 'call_invite', media: call.media, room: { kind: 'dm', id: call.roomId, name: call.name } })
 });
+function recoverRoomCall(event) {
+  const room = event?.detail || activeRoom.value;
+  if (room?.kind === 'dm') voiceCall.recoverInvite(Number(room.id));
+}
 const callState = voiceCall.state;
 const callMode = voiceCall.mode;
 const { connectUnreadInbox, disconnectUnreadInbox } = useUnreadInbox({
@@ -414,6 +422,7 @@ watch(activeRoomKey, async (k) => {
 	    return;
 	  }
   openConversationView();
+  recoverRoomCall();
   const loaded = await activateRoom();
   if (!loaded || activeRoomKey.value !== k) return;
   for (const delay of [0, 50, 150, 300]) {
@@ -482,6 +491,7 @@ async function copySelectedMessage() {
 
 onMounted(() => {
   window.addEventListener('pagehide', voiceCall.hangup);
+  window.addEventListener('edgechat:recover-call', recoverRoomCall);
   startViewportSync();
   window.addEventListener('focus', syncNotificationPermission);
   window.addEventListener(NATIVE_ROOM_OPEN_EVENT, openNativeRoom);
@@ -494,6 +504,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('pagehide', voiceCall.hangup);
+  window.removeEventListener('edgechat:recover-call', recoverRoomCall);
   void voiceCall.hangup();
   closeUserProfile();
   cancelMessageLongPress();

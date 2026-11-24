@@ -17,6 +17,7 @@ export interface CallSnapshot {
 }
 interface CallApi {
   callConfig(roomId: number): Promise<{ turnAvailable: boolean; videoAvailable?: boolean }>;
+  callPending(roomId: number): Promise<{ invite: CallEvent | null }>;
   callAction(roomId: number, action: CallAction): Promise<unknown>;
   callIce(roomId: number, callId: string, clientId: string): Promise<{ iceServers: RTCIceServer[] }>;
 }
@@ -50,6 +51,7 @@ export function createVoiceCallClient({ api, userId, onChange, onError,
   let pendingCamera: MediaStreamTrack | null = null;
   let videoSender: RTCRtpSender | null = null;
   let generation = 0;
+  let recovery = 0;
   let revision = 0;
   let candidates: RTCIceCandidateInit[] = [];
   let fallbackTimer: ReturnType<typeof setTimeout>;
@@ -310,11 +312,23 @@ export function createVoiceCallClient({ api, userId, onChange, onError,
     }
   }
   function receive(event: CallEvent) {
+    recovery++;
     const epoch = generation;
     eventQueue = eventQueue.then(() => handleEvent(event)).catch(error => {
       if (epoch === generation) return fail(error);
     });
     return eventQueue;
+  }
+  async function recoverInvite(roomId: number) {
+    if (call) return;
+    const request = ++recovery;
+    const epoch = generation;
+    try {
+      const { invite } = await api.callPending(roomId);
+      if (invite && request === recovery && epoch === generation) await receive(invite);
+    } catch {
+      // The live inbox can still deliver an invitation when the recovery request is unavailable.
+    }
   }
   async function changeCamera(target: CameraFacing) {
     const local = stream;
@@ -403,5 +417,5 @@ export function createVoiceCallClient({ api, userId, onChange, onError,
     try { await audio?.play(); needsPlay = false; change(); }
     catch { onError(new Error('call.playFailed')); }
   }
-  return { start, accept, hangup, switchMode, receive, switchCamera, toggleCamera, toggleMute, play, reset };
+  return { start, accept, hangup, switchMode, receive, recoverInvite, switchCamera, toggleCamera, toggleMute, play, reset };
 }

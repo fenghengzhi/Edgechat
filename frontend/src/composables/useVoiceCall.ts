@@ -39,10 +39,13 @@ export function useVoiceCall({ userId, error, notifyIncoming, shouldRing }) {
     void client.start(room, preferredMode.value, media);
   }
   function receive(event) { if (!isCapacitorAndroid) void client.receive(event); }
+  function recoverInvite(roomId: number) {
+    if (!isDemoMode && !isCapacitorAndroid) void client.recoverInvite(roomId);
+  }
   function changeMode(value: CallMode) {
     preferredMode.value = value;
     void client.switchMode(value);
   }
-  return { state, mode, start, receive, changeMode, accept: () => client.accept(preferredMode.value),
+  return { state, mode, start, receive, recoverInvite, changeMode, accept: () => client.accept(preferredMode.value),
     hangup: client.hangup, toggleMute: client.toggleMute, toggleCamera: client.toggleCamera, switchCamera: client.switchCamera, play: client.play };
 }

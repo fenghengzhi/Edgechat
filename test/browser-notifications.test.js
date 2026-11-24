@@ -78,6 +78,10 @@ test("浏览器通知需由用户授权开启，并按账号持久化", async ()
 	});
 	assert.equal(otherAccount.notificationsEnabled.value, false);
 
+	storage.setItem('edgechat:web-push-owner', '7');
+	assert.equal(restored.notifyRoom({ kind: 'dm', id: 5 }), false);
+	assert.equal(restored.notifyRoom({ kind: 'private', id: 5 }), true);
+
 	NotificationApi.permission = "denied";
 	restored.syncNotificationPermission();
 	assert.equal(restored.notificationsEnabled.value, false);
@@ -166,6 +170,21 @@ test("浏览器拒绝通知权限时开关保持禁用", async () => {
 	assert.equal(notifications.notificationActionLabel.value, "浏览器已阻止通知");
 	await notifications.toggleNotifications();
 	assert.equal(notifications.notificationsEnabled.value, false);
+});
+
+test("后台网页的私信回退通知显示发送人的昵称、头像和纯文本预览", async () => {
+	const { NotificationApi, notifications: shown } = createNotificationApi();
+	const notifications = useBrowserNotifications({ notificationApi: NotificationApi, storage: createStorage(), browserWindow: {} });
+	await notifications.toggleNotifications();
+	const room = { id: 8, kind: "dm", name: "DM" };
+	const sender = { kind: "local", username: "alice", displayName: "小林", avatarUrl: "/files/2%2Fprofile.png" };
+	notifications.notifyRoom({ room, sender, contentPreview: "**周五见**" });
+	assert.equal(shown[0].title, "小林");
+	assert.equal(shown[0].options.body, "周五见");
+	assert.equal(shown[0].options.icon, sender.avatarUrl);
+	notifications.notifyRoom({ room: { ...room, name: "小林" }, type: "call_invite", media: "video" });
+	assert.equal(shown[1].title, "小林");
+	assert.equal(shown[1].options.body, "视频来电");
 });
 
 test("Service Worker 未激活或注册查询失败时使用原有通知", async () => {

@@ -8,7 +8,7 @@ export function registerCallRoutes(app) {
     await authorizeVoiceCall(c.env.DB, Number(c.req.param('roomId')), c.get('session').userId);
     return c.json({ iceServers: CALL_STUN, videoAvailable: true, turnAvailable: turnConfigured(c.env) });
   });
-  for (const [method, path] of [['post', 'action'], ['get', 'ice']]) {
+  for (const [method, path] of [['post', 'action'], ['get', 'ice'], ['get', 'pending']]) {
     app[method](`/api/calls/:roomId/${path}`, async c => {
       const roomId = Number(c.req.param('roomId'));
       await authorizeVoiceCall(c.env.DB, roomId, c.get('session').userId);

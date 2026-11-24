@@ -4,7 +4,7 @@
 
 在有前后摄像头的手机上，点通话栏的「切换摄像头」即可换镜头。切换时仍可交谈，麦克风会保留当前的静音设置。
 
-来电保持 45 秒，单次通话最多 1 小时。双方都需要保持聊天页面运行以持续通话。网页和 PWA 支持视频通话，Capacitor Android 客户端沿用原有的通话限制。
+来电保持 45 秒，单次通话最多 1 小时。启用 Web Push 后，接收方可以从系统通知打开私聊，在来电仍有效时接听。通知送达受操作系统和浏览器影响。双方都需要保持聊天页面运行以持续通话。网页和 PWA 支持视频通话，Capacitor Android 客户端沿用原有的通话限制。
 
 ## 连接与隐私
 
@@ -34,6 +34,7 @@ npx wrangler secret put EDGECHAT_TURN_API_TOKEN
 ## 控制协议
 
 - `GET /api/calls/:roomId/config`：仅 DM 双方，返回 STUN、`turnAvailable` 与 `videoAvailable`。
+- `GET /api/calls/:roomId/pending`：仅接听方可取回仍在响铃的邀请，其余情况返回 `{"invite":null}`。客户端打开推送后用它恢复接听界面。
 - `POST /api/calls/:roomId/action`：带 `type/callId/clientId`；`start/accept/restart` 带 `mode: auto|relay`；`offer/answer/ice` 带当前 `revision`，以及 `sdp` 或 `candidate`。`start/accept` 还带 `media: audio|video`。旧客户端缺省为 `audio`；视频只能由明确同意视频的客户端接听。其他动作是 `reject/hangup/heartbeat`。
 - `GET /api/calls/:roomId/ice?callId=...&clientId=...`：仅已接听且占用该窗口的参与者，返回临时 ICE 配置，响应 `Cache-Control: no-store`。
 - Inbox 帧：`call_invite/call_negotiate/call_signal/call_ended`，都有 `callId/roomId/media`；协商与信令带 `revision`。客户端必须按自己的用户与窗口 ID 过滤。
@@ -44,4 +45,4 @@ npx wrangler secret put EDGECHAT_TURN_API_TOKEN
 
 ## 验收
 
-两个真实账号、不同网络分别检查 P2P 双向音视频、麦克风与摄像头授权/拒绝、接听/拒绝/无人接听、静音、停用与恢复摄像头、挂断、已配置时的自动 TURN 回退与手动双向切换。多窗口只允许一个接听；拉黑双方不得发起或继续协商。手机还需核对浏览器自动播放、锁屏和网络切换。
+两个真实账号、不同网络分别检查 P2P 双向音视频、麦克风与摄像头授权/拒绝、接听/拒绝/无人接听、静音、停用与恢复摄像头、挂断、已配置时的自动 TURN 回退与手动双向切换。多窗口只允许一个接听；拉黑双方不得发起或继续协商。手机还需核对浏览器自动播放、PWA 通知进入来电、锁屏和网络切换。
