@@ -4,7 +4,7 @@ import test from 'node:test';
 import initSqlJs from 'sql.js';
 import { Hono } from 'hono';
 import { registerDirectUploads } from '../worker/src/api/direct-uploads.ts';
-import { canAccessFile } from '../worker/src/data/uploaded-files.js';
+import { canAccessFile, getUploadedFileMetadata } from '../worker/src/data/uploaded-files.js';
 import { serveDirectFile } from '../worker/src/storage/direct-read.ts';
 import { createD1Adapter } from './support/d1.js';
 import { CHUNK_BYTES, chunkAlgorithm, decryptedResponse, decode64, encode64 } from '../frontend/public/attachment-crypto.js';
@@ -74,6 +74,28 @@ test('direct multipart reservations, owner-bound tickets and immutable publicati
   await assert.rejects(corrupt.arrayBuffer());
   sql.run('DELETE FROM uploaded_files WHERE object_key = ?', [key]);
   assert.equal((await call('direct/finish', finish)).status, 410);
+
+  await t.test('direct APK upload publishes the canonical MIME for download', async () => {
+    const apkType = 'application/vnd.android.package-archive';
+    env.ALLOWED_FILE_TYPES = apkType;
+    const apk = { ...input, name: 'App.APK', type: 'application/octet-stream' };
+    assert.equal((await call('direct/start', { ...apk, type: 'text/html' })).status, 400);
+    assert.equal((await call('direct/start', { ...apk, name: 'App.bin' })).status, 400);
+    const start = await call('direct/start', apk);
+    assert.equal(start.status, 200);
+    const { key: apkKey, ticket: apkTicket } = await start.json();
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0]);
+    object = undefined;
+    ciphertext = await crypto.subtle.encrypt(chunkAlgorithm(apkKey, apk.size, 0), aes, bytes);
+    const result = await call('direct/finish', { ticket: apkTicket, etags: ['b'.repeat(32)] });
+    assert.equal(result.status, 200);
+    assert.equal((await result.json()).file.type, apkType);
+    const stored = await getUploadedFileMetadata(DB, apkKey);
+    assert.deepEqual(stored, { filename: apk.name, contentType: apkType, size: apk.size });
+    const download = await serveDirectFile(env, apkKey, stored, request, 'attachment');
+    assert.equal(download.headers.get('content-type'), apkType);
+    assert.deepEqual(new Uint8Array(await download.arrayBuffer()), bytes);
+  });
 });
 
 test('chunk authentication and ranges include the last byte and empty-file tag', async () => {

@@ -39,9 +39,9 @@ export function registerDirectUploads(app) {
     if (!Number.isSafeInteger(size) || size < 0 || typeof wrapped !== 'string' || wrapped.length !== 344) {
       throw new ApiError('附件参数无效');
     }
-    const contentType = normalizeContentType(type) || 'application/octet-stream';
-    if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(contentType)) throw new ApiError('该文件类型不允许上传');
-    validateUpload(env, { size, type: contentType }, (await uploadLimits(env)).bytes);
+    const reportedType = normalizeContentType(type) || 'application/octet-stream';
+    if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(reportedType)) throw new ApiError('该文件类型不允许上传');
+    const contentType = validateUpload(env, { name, size, type: reportedType }, (await uploadLimits(env)).bytes);
     const key = owner + '/direct-v2/' + crypto.randomUUID();
     const filekey = await sealFileKey(env, wrapped, key, owner);
     const upload = await env.FILES.createMultipartUpload(key, {
