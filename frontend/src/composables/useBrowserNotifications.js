@@ -171,7 +171,7 @@ export function useBrowserNotifications(options = {}) {
 		}
 
 		const callInvite = event?.type === 'call_invite';
-		const title = callInvite ? `${room.name || 'EdgeChat'} · ${t('call.incoming')}` : event?.replyToMe
+		const title = callInvite ? `${room.name || 'EdgeChat'} · ${t(event.media === "video" ? "call.videoIncoming" : "call.incoming")}` : event?.replyToMe
 			? t("notifications.repliedTitle", { room: room.name || "EdgeChat" })
 			: event?.mentionsMe
 				? t("notifications.mentionedTitle", { room: room.name || "EdgeChat" })
@@ -184,7 +184,7 @@ export function useBrowserNotifications(options = {}) {
 			]
 			.filter(Boolean)
 			.join(": ");
-		const body = callInvite ? t('call.voice') : needsAttention
+		const body = callInvite ? t(event.media === "video" ? "call.video" : "call.voice") : needsAttention
 			? attentionBody ||
 				(event?.replyToMe
 					? t("notifications.repliedBody")

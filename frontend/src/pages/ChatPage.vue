@@ -1,5 +1,5 @@
 <script setup>
-import { ArrowLeft, Ban, Bell, BellOff, ContactRound, Menu, MessageCircle, Phone, Settings, UsersRound } from '@lucide/vue';
+import { ArrowLeft, Ban, Bell, BellOff, ContactRound, Menu, MessageCircle, Phone, Video, Settings, UsersRound } from '@lucide/vue';
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -176,7 +176,7 @@ const {
 
 const voiceCall = useVoiceCall({ userId: session.value?.userId, error,
   shouldRing: call => !isRoomMuted({ kind: 'dm', id: call.roomId }),
-  notifyIncoming: call => notifyRoom({ type: 'call_invite', room: { kind: 'dm', id: call.roomId, name: call.name } })
+  notifyIncoming: call => notifyRoom({ type: 'call_invite', media: call.media, room: { kind: 'dm', id: call.roomId, name: call.name } })
 });
 const callState = voiceCall.state;
 const callMode = voiceCall.mode;
@@ -726,6 +726,7 @@ watch(
           <div class="chat-header__actions">
             <div v-if="activeRoom.kind === 'dm' && !isCapacitorAndroid" class="chat-call-controls">
               <button type="button" class="chat-header__button" :title="t('call.voice')" :aria-label="t('call.voice')" :disabled="Boolean(callState.call) || activeDmBlockedByMe" @click="voiceCall.start(activeRoom)"><Phone :size="19" aria-hidden="true" /></button>
+              <button type="button" class="chat-header__button" :title="t('call.video')" :aria-label="t('call.video')" :disabled="Boolean(callState.call) || activeDmBlockedByMe" @click="voiceCall.start(activeRoom, 'video')"><Video :size="19" aria-hidden="true" /></button>
               <select class="chat-call-mode" :value="callMode" :aria-label="t('call.mode')" :title="t('call.mode')" :disabled="['permission', 'calling'].includes(callState.phase)" @change="voiceCall.changeMode($event.target.value)">
                 <option value="auto">P2P</option><option value="relay">TURN</option>
               </select>
@@ -896,7 +897,8 @@ watch(
       </aside>
     </div>
 
-    <VoiceCallBar :state="callState" @accept="voiceCall.accept" @hangup="voiceCall.hangup" @mute="voiceCall.toggleMute" @play="voiceCall.play" />
+    <VoiceCallBar :state="callState" @accept="voiceCall.accept" @hangup="voiceCall.hangup" @mute="voiceCall.toggleMute"
+      @camera="voiceCall.toggleCamera" @switch-camera="voiceCall.switchCamera" @play="voiceCall.play" />
     <MobileNavigationDrawer
       v-if="visitedOverlays.has('mobileNavigation')"
       :show="showMobileNavigation"

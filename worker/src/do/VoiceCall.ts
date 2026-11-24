@@ -32,7 +32,7 @@ export class VoiceCall {
   async emit(call: CallState, type: string, extra = {}, target?: number) {
     const payload = { type, callId: call.id, roomId: call.roomId, callerId: call.callerId,
       calleeId: call.calleeId, callerClient: call.callerClient, calleeClient: call.calleeClient,
-      mode: call.mode, revision: call.revision, expiresAt: call.createdAt + CALL_RING_MS, ...extra };
+      mode: call.mode, media: call.media ?? 'audio', revision: call.revision, expiresAt: call.createdAt + CALL_RING_MS, ...extra };
     await Promise.all((target ? [target] : [call.callerId, call.calleeId]).map(id => notifyUserInbox(this.env, id, payload)));
   }
   async end(reason: string) {
